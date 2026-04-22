@@ -97,32 +97,45 @@ export default async function chatHandler(req: Request, res: Response) {
     console.error('Supabase insert error:', err);
   }
 
-  const responsePayload: ChatSuccessResponse | ChatVetoResponse = {
-    session_id: sessId,
-    response: halResult.hal_verdict === 'VETOED' ? (null as any) : llmResult.response_text,
-    llm_provider_used: llmResult.llm_provider_used,
-    prompt_count_today: promptCountToday,
-    prompts_remaining_today: promptsRemainingToday,
-    hal: {
-      score: halResult.hal_score,
-      signals: halResult.hal_signals,
-      verdict: halResult.hal_verdict,
-      flagged_hallucination: halResult.hal_flagged_hallucination,
-    },
-    token_stats: {
-      used: halResult.tokens_used,
-      baseline_estimate: null,
-      savings_pct: null,
-    },
-    latency_ms: latency,
-    score_event_id: halResult.score_event_id,
+  const hal = {
+    score: halResult.hal_score,
+    signals: halResult.hal_signals,
+    verdict: halResult.hal_verdict,
+    flagged_hallucination: halResult.hal_flagged_hallucination,
+  };
+  const token_stats = {
+    used: halResult.tokens_used,
+    baseline_estimate: null,
+    savings_pct: null,
   };
 
   if (halResult.hal_verdict === 'VETOED') {
-    (responsePayload as ChatVetoResponse).veto_reason = 'HAL veto triggered';
-    (responsePayload as ChatVetoResponse).suggested_rephrase = null;
-    return res.json(responsePayload);
+    const vetoPayload: ChatVetoResponse = {
+      session_id: sessId,
+      response: null,
+      llm_provider_used: llmResult.llm_provider_used,
+      prompt_count_today: promptCountToday,
+      prompts_remaining_today: promptsRemainingToday,
+      hal,
+      token_stats,
+      latency_ms: latency,
+      score_event_id: halResult.score_event_id,
+      veto_reason: 'HAL veto triggered',
+      suggested_rephrase: null,
+    };
+    return res.json(vetoPayload);
   }
 
-  return res.json(responsePayload);
+  const successPayload: ChatSuccessResponse = {
+    session_id: sessId,
+    response: llmResult.response_text,
+    llm_provider_used: llmResult.llm_provider_used,
+    prompt_count_today: promptCountToday,
+    prompts_remaining_today: promptsRemainingToday,
+    hal,
+    token_stats,
+    latency_ms: latency,
+    score_event_id: halResult.score_event_id,
+  };
+  return res.json(successPayload);
 }
