@@ -1,28 +1,50 @@
-import fetch from 'node-fetch';
 import { CONFIG } from '../config';
-/**
- * Mock Litellm service wrapper.
- * In production this would POST to `${CONFIG.LITELLM_URL}/chat/completions`.
- * The function accepts a `providerId` (from CONFIG.LLM_PROVIDERS) and optional BYOK params.
- * For the MVP we ignore BYOK and always return a deterministic mock response.
- */
-export async function callLitellm(
-  message: string,
-  providerId: string = CONFIG.LLM_PROVIDERS[0].id,
-  byokProvider?: string,
-  byokApiKey?: string,
-) {
-  // Mock provider selection – we just echo the providerId.
-  const provider = providerId;
-  const model = CONFIG.LLM_PROVIDERS.find(p => p.id === providerId)?.defaultModel || 'claude-sonnet';
-  const response = `Mock response from ${provider}/${model} for: ${message}`;
 
-  // Simulate async latency.
-  await new Promise(r => setTimeout(r, 50));
+const MODEL_MAP: Record<string, string> = {
+  'claude-sonnet-4-6': 'anthropic-claude',
+  'gpt-5': 'anthropic-claude',
+  'gemini-2-5-pro': 'anthropic-claude',
+};
 
-  return {
-    llm_provider_used: provider,
-    llm_model: model,
-    llm_response: response,
-  };
+function mapModel(pref?: string): string {
+  if (!pref) return 'anthropic-claude';
+  return MODEL_MAP[pref] ?? 'anthropic-claude';
+}
+
+export async function callLitellm(message: string, model_preference?: string) {
+  const model = mapModel(model_preference);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${CONFIG.LITELLM_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${CONFIG.LITELLM_MASTER_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: message }],
+        max_tokens: 800,
+        temperature: 0.7,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`LiteLLM ${res.status} ${res.statusText}: ${text}`);
+    }
+    const data: any = await res.json();
+    const response_text = data?.choices?.[0]?.message?.content;
+    if (typeof response_text !== 'string') {
+      throw new Error('LiteLLM response missing choices[0].message.content');
+    }
+    return {
+      response_text,
+      llm_provider_used: model,
+      tokens_used: typeof data?.usage?.total_tokens === 'number' ? data.usage.total_tokens : null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }

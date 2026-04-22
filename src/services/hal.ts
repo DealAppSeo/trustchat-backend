@@ -1,37 +1,64 @@
-import fetch from 'node-fetch';
-import { CONFIG } from '../config';
-/**
- * Mock HAL scoring service wrapper.
- * In production this would POST to the RepID Engine `/score-event` endpoint.
- * The mock generates deterministic signals based on the decision text length.
- * It also returns a flagged hallucination boolean when the simulated
- * `harm_probability` exceeds a small threshold.
- */
-export async function scoreWithHal(decisionText: string, sessionId: string) {
-  const length = decisionText.length;
-  const base = (length % 100) / 100; // 0.0‑0.99
-  const halScore = Number((base * 0.5 + 0.5).toFixed(4)); // 0.5‑1.0
-  const signals = {
-    harm_probability: Number((base * 0.2).toFixed(4)),
-    epistemic_uncertainty: Number(((1 - base) * 0.5).toFixed(4)),
-    evidence_quality: Number((base * 0.8).toFixed(4)),
-    scope_appropriateness: Number(((base + 0.3) % 1).toFixed(4)),
-    certainty_at_claim: Number((base * 0.9 + 0.1).toFixed(4)),
-  };
-  const verdict = halScore > 0.75 ? 'APPROVED' : halScore > 0.5 ? 'FLAGGED' : 'VETOED';
-  const flaggedHallucination = signals.harm_probability > 0.1;
-  const tokensUsed = Math.floor(50 + base * 150); // mock token count
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
 
-  // Simulate async latency.
-  await new Promise(r => setTimeout(r, 50));
+export async function scoreWithHal(
+  question: string,
+  answer: string,
+  tokensUsed: number | null,
+) {
+  const q = question.toLowerCase();
+  const a = answer.toLowerCase();
+  const qa = `${q} ${a}`;
+
+  let evidence = 0.4;
+  const hasNumOrDate = /\d/.test(answer);
+  const hasProperNouns = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(answer);
+  if (hasNumOrDate || hasProperNouns) evidence += 0.3;
+  if (/\b(according to|study|research|data)\b/.test(a)) evidence += 0.2;
+  evidence = clamp01(evidence);
+
+  let certainty = 0.6;
+  if (/\b(definitely|always|never|absolutely|certainly|exactly)\b/.test(a)) certainty += 0.3;
+  if (/\b(might|may|possibly|perhaps|likely)\b/.test(a)) certainty -= 0.2;
+  certainty = clamp01(certainty);
+
+  let uncertainty = 0.3;
+  if (/\b(why|predict|will|future|opinion)\b/.test(q)) uncertainty += 0.3;
+  uncertainty = clamp01(uncertainty);
+
+  let harm = 0.1;
+  if (/\b(medical|legal|financial advice|weapon|weapons|drug|drugs|self[-\s]harm|suicide)\b/.test(qa)) {
+    harm += 0.3;
+  }
+  harm = clamp01(harm);
+
+  let scope = 0.8;
+  if (/as an ai\b/.test(a)) scope -= 0.3;
+  if (answer.length < 20) scope -= 0.2;
+  scope = clamp01(scope);
+
+  const hal_score = clamp01(
+    harm * 0.4 + (1 - evidence) * 0.3 + uncertainty * 0.2 + (1 - scope) * 0.1,
+  );
+
+  const hal_verdict: 'APPROVED' | 'FLAGGED' | 'VETOED' =
+    hal_score > 0.6 ? 'VETOED' : hal_score > 0.4 ? 'FLAGGED' : 'APPROVED';
+
+  const hal_flagged_hallucination = hal_score > 0.5;
 
   return {
-    hal_score: halScore,
-    hal_signals: signals,
-    hal_verdict: verdict,
-    hal_flagged_hallucination: flaggedHallucination,
+    hal_score: Number(hal_score.toFixed(4)),
+    hal_signals: {
+      evidence_quality: Number(evidence.toFixed(4)),
+      certainty_at_claim: Number(certainty.toFixed(4)),
+      epistemic_uncertainty: Number(uncertainty.toFixed(4)),
+      harm_probability: Number(harm.toFixed(4)),
+      scope_appropriateness: Number(scope.toFixed(4)),
+    },
+    hal_verdict,
+    hal_flagged_hallucination,
     tokens_used: tokensUsed,
-    // mock score_event_id – random bigint in a plausible range
-    score_event_id: Math.floor(Math.random() * 1000) + 400,
+    score_event_id: null as number | null,
   };
 }

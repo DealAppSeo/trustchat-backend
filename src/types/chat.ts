@@ -40,7 +40,7 @@ export interface ChatSuccessResponse {
   hal: HalResult;
   token_stats: TokenStats;
   latency_ms: number;
-  score_event_id: number;
+  score_event_id: number | null;
 }
 
 export interface ChatVetoResponse {
@@ -52,9 +52,9 @@ export interface ChatVetoResponse {
   hal: HalResult;
   token_stats: TokenStats;
   latency_ms: number;
-  score_event_id: number;
+  score_event_id: number | null;
   veto_reason: string;
-  suggested_rephrase?: string;
+  suggested_rephrase?: string | null;
 }
 
 export interface ChatErrorResponse {
