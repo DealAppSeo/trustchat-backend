@@ -23,7 +23,7 @@ export default async function auditHandler(req: Request, res: Response) {
   try {
     halResult = await scoreWithHal(user_prompt, llm_response, null);
   } catch (err) {
-    console.error('HAL scoring error:', err);
+    console.error('HAL (Hallucination Assessment Layer) scoring error:', err);
     return res.status(500).json({ error: 'HAL scoring failed.' });
   }
 

@@ -40,7 +40,7 @@ export default async function chatHandler(req: Request, res: Response) {
   try {
     halResult = await scoreWithHal(message, llmResult.response_text, llmResult.tokens_used);
   } catch (err) {
-    console.error('HAL scoring error:', err);
+    console.error('HAL (Hallucination Assessment Layer) scoring error:', err);
     const latency = Date.now() - start;
     await supabaseClient.from('trustchat_sessions').insert({
       session_id: sessId,
