@@ -1,6 +1,6 @@
 # TrustChat Backend
 ⚡ **Sprint status:** code‑complete, integration pending (mock services only)
-**Backend service for TrustChat.dev MVP** – a minimal Node.js/Express API that accepts a user message, forwards it to a language model, scores the response with the HAL 5‑signal evaluator, logs the interaction in Supabase, and returns the LLM answer plus HAL scores.
+**Backend service for TrustChat.dev MVP** – a minimal Node.js/Express API that accepts a user message, forwards it to a language model, scores the response with the HAL (Hallucination Assessment Layer) 5‑signal evaluator, logs the interaction in Supabase, and returns the LLM answer plus HAL scores.
 
 ## Architecture Contract
 | Existing Component | Integration | Forbidden |
