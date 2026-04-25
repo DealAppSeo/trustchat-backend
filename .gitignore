@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Internal instruction / log files — do not commit to public repos
+CLAUDE.md
+AGENTS.md
+gmpd_log.md
+marco_dm.md
